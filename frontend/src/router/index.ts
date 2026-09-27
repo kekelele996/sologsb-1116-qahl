@@ -21,6 +21,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '采集点管理' }
   },
   {
+    path: '/cultures',
+    name: 'cultures',
+    component: () => import('@/pages/CulturePage.vue'),
+    meta: { title: '菌种保藏' }
+  },
+  {
     path: '/identify',
     name: 'identify',
     component: () => import('@/pages/IdentifyPage.vue'),

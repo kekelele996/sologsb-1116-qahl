@@ -6,15 +6,18 @@ import { recordStore } from '@/stores/recordStore'
 import { sporeStore } from '@/stores/sporeStore'
 import { pointStore } from '@/stores/pointStore'
 import { identifyStore } from '@/stores/identifyStore'
+import { cultureStore } from '@/stores/cultureStore'
 
 const route = useRoute()
 const recordState = useStore(recordStore)
 const sporeState = useStore(sporeStore)
 const pointState = useStore(pointStore)
 const identifyState = useStore(identifyStore)
+const cultureState = useStore(cultureStore)
 
 const menus = [
   { path: '/atlas', label: '图谱总览', icon: 'Grid' },
+  { path: '/cultures', label: '菌种保藏', icon: 'Dish' },
   { path: '/points', label: '采集点管理', icon: 'Location' },
   { path: '/identify', label: '鉴定工作页', icon: 'Search' },
   { path: '/compare', label: '条目对比', icon: 'Files' }
@@ -25,6 +28,7 @@ const activeMenu = computed(() => menus.find((item) => route.path.startsWith(ite
 const stats = computed(() => [
   { label: '条目', value: recordState.records.length },
   { label: '孢子印', value: sporeState.spores.length },
+  { label: '菌种管', value: cultureState.cultures.length },
   { label: '采集点', value: pointState.points.length },
   { label: '鉴定留痕', value: identifyState.logs.length }
 ])
@@ -34,6 +38,7 @@ onMounted(async () => {
   await sporeStore.getState().hydrate()
   await pointStore.getState().hydrate()
   await identifyStore.getState().hydrate()
+  await cultureStore.getState().hydrate()
 })
 </script>
 

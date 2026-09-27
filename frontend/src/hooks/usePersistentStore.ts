@@ -1,22 +1,23 @@
 import { onUnmounted, reactive } from 'vue'
 import type { StoreApi } from 'zustand/vanilla'
 import Dexie, { type Table } from 'dexie'
-import type { CollectPoint, FungusRecord, IdentifyLog, SporePrint } from '@/types'
+import type { CollectPoint, CultureTube, FungusRecord, IdentifyLog, SporePrint } from '@/types'
 
 /** IndexedDB 数据结构版本号 */
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
 
 export interface MetaRow {
   key: string
   value: number
 }
 
-/** Dexie 封装：条目 / 孢子印 / 采集点 / 鉴定结论 四张表 + 元数据表 */
+/** Dexie 封装：条目 / 孢子印 / 采集点 / 鉴定结论 / 菌种管 五张表 + 元数据表 */
 class FungiGuideDb extends Dexie {
   records!: Table<FungusRecord, string>
   spores!: Table<SporePrint, string>
   points!: Table<CollectPoint, string>
   identifies!: Table<IdentifyLog, string>
+  cultures!: Table<CultureTube, string>
   meta!: Table<MetaRow, string>
 
   constructor() {
@@ -29,7 +30,7 @@ class FungiGuideDb extends Dexie {
       meta: 'key'
     })
     // v2：新增「菌肉变色反应」字段，迁移时为历史条目补齐默认值（不变色）
-    this.version(SCHEMA_VERSION)
+    this.version(2)
       .stores({
         records: 'id, code, pointId, attachment, capShape',
         spores: 'id, recordId, color, observeDate',
@@ -47,6 +48,15 @@ class FungiGuideDb extends Dexie {
             }
           })
       })
+    // v3：新增「菌种保藏」培养管表，管号 tubeNo 建唯一索引，重复管号无法落库
+    this.version(SCHEMA_VERSION).stores({
+      records: 'id, code, pointId, attachment, capShape',
+      spores: 'id, recordId, color, observeDate',
+      points: 'id, name, substrate, vegetation',
+      identifies: 'id, recordId, conclusion, date',
+      cultures: 'id, tubeNo, recordId, rootId, parentId, status, date',
+      meta: 'key'
+    })
   }
 }
 
@@ -245,6 +255,57 @@ export async function seedDemoData(): Promise<void> {
       needReview: false,
       reviewer: '祁野',
       date: today
+    }
+  ])
+
+  await db.cultures.bulkPut([
+    {
+      id: 'cul_001',
+      tubeNo: 'BHS-001-P0',
+      recordId: 'rec_001',
+      medium: 'PDA 培养基（马铃薯葡萄糖琼脂）',
+      date: today,
+      generation: 0,
+      rootId: 'cul_001',
+      parentId: null,
+      status: '在存',
+      note: '孢子印组织分离起始管（母管）'
+    },
+    {
+      id: 'cul_002',
+      tubeNo: 'BHS-001-P1',
+      recordId: 'rec_001',
+      medium: '改良 PDA（加链霉素）',
+      date: today,
+      generation: 1,
+      rootId: 'cul_001',
+      parentId: 'cul_001',
+      status: '污染',
+      note: '斜面边缘出现青绿色霉斑'
+    },
+    {
+      id: 'cul_003',
+      tubeNo: 'BHS-001-P2',
+      recordId: 'rec_001',
+      medium: '改良 PDA（加链霉素）',
+      date: today,
+      generation: 2,
+      rootId: 'cul_001',
+      parentId: 'cul_001',
+      status: '在存',
+      note: '由母管直接转接，菌丝洁白'
+    },
+    {
+      id: 'cul_004',
+      tubeNo: 'BHS-002-P0',
+      recordId: 'rec_002',
+      medium: 'MEA 麦芽浸膏琼脂',
+      date: today,
+      generation: 0,
+      rootId: 'cul_004',
+      parentId: null,
+      status: '废弃',
+      note: '分离未成功，菌丝不萌发'
     }
   ])
 }

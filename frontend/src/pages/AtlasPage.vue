@@ -23,6 +23,7 @@ import { recordStore } from '@/stores/recordStore'
 import { sporeStore } from '@/stores/sporeStore'
 import { pointStore } from '@/stores/pointStore'
 import { identifyStore } from '@/stores/identifyStore'
+import { cultureStore } from '@/stores/cultureStore'
 import { uid } from '@/utils/id'
 
 const router = useRouter()
@@ -183,10 +184,11 @@ async function submit(): Promise<void> {
 }
 
 async function removeRecord(record: FungusRecord): Promise<void> {
-  await ElMessageBox.confirm(`确认删除条目「${record.code}」？其孢子印与鉴定留痕一并清理`, '删除确认', {
+  await ElMessageBox.confirm(`确认删除条目「${record.code}」？其孢子印、鉴定留痕与菌种培养管一并清理`, '删除确认', {
     type: 'warning'
   })
   await sporeStore.getState().removeByRecord(record.id)
+  await cultureStore.getState().removeByRecord(record.id)
   const logs = identifyState.logs.filter((item) => item.recordId === record.id)
   await Promise.all(logs.map((item) => identifyStore.getState().remove(item.id)))
   await recordStore.getState().remove(record.id)

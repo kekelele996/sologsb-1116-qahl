@@ -13,6 +13,7 @@ import { recordStore } from '@/stores/recordStore'
 import { sporeStore } from '@/stores/sporeStore'
 import { pointStore } from '@/stores/pointStore'
 import { identifyStore } from '@/stores/identifyStore'
+import { cultureStore, summarizeCultures } from '@/stores/cultureStore'
 import { sporeColorHex } from '@/utils/spore'
 import { uid } from '@/utils/id'
 
@@ -22,10 +23,20 @@ const recordState = useStore(recordStore)
 const sporeState = useStore(sporeStore)
 const pointState = useStore(pointStore)
 const identifyState = useStore(identifyStore)
+const cultureState = useStore(cultureStore)
 
 const record = computed(() => recordState.records.find((item) => item.id === route.params.id) ?? null)
 const spore = computed(() => sporeState.spores.find((item) => item.recordId === record.value?.id) ?? null)
 const logs = computed(() => identifyState.logs.filter((item) => item.recordId === record.value?.id))
+/** 该条目全部培养管（含污染、废弃），按代次与日期排列 */
+const tubes = computed(() =>
+  cultureState.cultures
+    .filter((tube) => tube.recordId === record.value?.id)
+    .slice()
+    .sort((a, b) => a.generation - b.generation || a.date.localeCompare(b.date))
+)
+/** 条目详情汇总：当前在存管数 + 最高代次（基于响应式 tubes 计算） */
+const cultureStat = computed(() => summarizeCultures(tubes.value))
 /** 当前条目所属采集点名称（在脚本内取，避免模板内箭头函数丢失空值收窄） */
 const recordPointName = computed(() => {
   const current = record.value
@@ -105,6 +116,19 @@ async function removeSpore(): Promise<void> {
   sporeForm.id = ''
   ElMessage.success('孢子印记录已删除')
 }
+
+function cultureStatusType(status: string): 'success' | 'danger' | 'info' {
+  return status === '在存' ? 'success' : status === '污染' ? 'danger' : 'info'
+}
+
+/** 历代来源链：起始管 → … → 当前管 */
+function lineageText(tubeId: string): string {
+  return cultureStore
+    .getState()
+    .lineageOf(tubeId)
+    .map((item) => item.tubeNo)
+    .join(' → ')
+}
 </script>
 
 <template>
@@ -180,6 +204,50 @@ async function removeSpore(): Promise<void> {
               <el-button v-if="sporeForm.id" type="danger" plain @click="removeSpore">删除记录</el-button>
             </div>
           </el-form>
+        </div>
+      </el-card>
+
+      <el-card shadow="never" class="block">
+        <template #header>
+          <div class="block-head">
+            <span>菌种保藏</span>
+            <div class="culture-summary">
+              <el-tag type="success" effect="dark" size="small">在存 {{ cultureStat.active }} 管</el-tag>
+              <el-tag type="info" effect="plain" size="small">累计 {{ cultureStat.total }} 管</el-tag>
+              <el-tag type="warning" effect="plain" size="small">
+                最高代次 {{ cultureStat.maxGeneration === null ? '—' : `P${cultureStat.maxGeneration}` }}
+              </el-tag>
+            </div>
+          </div>
+        </template>
+        <el-table :data="tubes" border stripe size="small">
+          <el-table-column prop="tubeNo" label="管号" width="160">
+            <template #default="{ row }: { row: { tubeNo: string } }">
+              <span class="mono">{{ row.tubeNo }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="medium" label="培养基" min-width="180" show-overflow-tooltip />
+          <el-table-column label="代次" width="80" align="center">
+            <template #default="{ row }: { row: { generation: number } }">P{{ row.generation }}</template>
+          </el-table-column>
+          <el-table-column prop="date" label="分离/转接日期" width="120" />
+          <el-table-column label="状态" width="80" align="center">
+            <template #default="{ row }: { row: { status: string } }">
+              <el-tag :type="cultureStatusType(row.status)" size="small" effect="dark">{{ row.status }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="历代关系（原始来源起）" min-width="200">
+            <template #default="{ row }: { row: { id: string } }">
+              <span class="lineage-text mono">{{ lineageText(row.id) }}</span>
+            </template>
+          </el-table-column>
+        </el-table>
+        <el-empty v-if="tubes.length === 0" description="该条目尚未建立起始管，孢子印分离后先登记母管" :image-size="70" />
+        <div class="form-actions culture-actions">
+          <el-button type="primary" @click="router.push(`/cultures?recordId=${record.id}&action=starter`)">
+            建立起始管
+          </el-button>
+          <el-button @click="router.push(`/cultures?recordId=${record.id}`)">前往菌种保藏转接</el-button>
         </div>
       </el-card>
 
@@ -275,5 +343,17 @@ async function removeSpore(): Promise<void> {
   display: flex;
   gap: 8px;
   padding-left: 92px;
+}
+.culture-summary {
+  display: flex;
+  gap: 6px;
+}
+.culture-actions {
+  padding-left: 0;
+  margin-top: 12px;
+}
+.lineage-text {
+  font-size: 12px;
+  color: #4b5b50;
 }
 </style>
