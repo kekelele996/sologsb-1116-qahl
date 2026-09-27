@@ -59,13 +59,14 @@ sologsb-1116/
 │   ├── nginx.conf              # try_files 前端路由回落 + gzip
 │   ├── public/favicon.svg
 │   └── src/
-│       ├── types/              # record.ts / spore.ts / point.ts / identify.ts / index.ts
-│       ├── stores/             # recordStore / sporeStore / pointStore / identifyStore（Zustand）
+│       ├── types/              # record.ts / spore.ts / point.ts / identify.ts / strain.ts / index.ts
+│       ├── stores/             # recordStore / sporeStore / pointStore / identifyStore / strainStore（Zustand）
 │       ├── components/common/  # SporePrintSwatch / TraitsSummary / GillAttachmentTag / GeoPointForm
-│       ├── hooks/              # usePersistentStore / useCandidateMatch
-│       ├── pages/              # AtlasPage / RecordDetailPage / PointsPage / IdentifyPage / ComparePage
+│       ├── components/strain/  # InitialTubeDialog / TransferDialog / LineageDialog
+│       ├── hooks/              # usePersistentStore / useCandidateMatch / useTubeActions
+│       ├── pages/              # AtlasPage / RecordDetailPage / PointsPage / IdentifyPage / ComparePage / StrainsPage
 │       ├── router/index.ts
-│       └── utils/              # spore.ts / export.ts / id.ts
+│       └── utils/              # spore.ts / strain.ts / export.ts / id.ts
 ```
 
 ## 五、数据模型与存储
@@ -76,9 +77,12 @@ sologsb-1116/
 | SporePrint 孢子印 | 印色、印形、获取时长、观察日期、样本干湿度 | `spores` |
 | CollectPoint 采集点 | 地点名、经纬度、海拔、植被类型、基物、伴生树种、日期、采集人 | `points` |
 | IdentifyLog 鉴定结论 | 结论学名、依据、参考图鉴与页码、置信度、是否待复核、复核人 | `identifies` |
+| CultureTube 菌种管 | 管号（全局唯一）、培养基、分离/转接日期、代次（起始管 G1，转接自动加一）、母管 id、状态（在存/污染/废弃） | `strains` |
 
 - 数据库名 `gbfungiguide`，`meta` 表保存 `schemaVersion`；
 - `version(2)` 升级迁移会为历史条目补齐「菌肉变色反应」默认值（不变色）；
+- `version(3)` 新增 `strains` 表用于菌种保藏，未变化的表沿用 v2 结构；
+- 起始管登记校验：分离日期早于采集日期或管号重复时不保存；已污染或废弃的管不再转接；
 - 数据仅存于浏览器本地，容器无状态、不挂载命名卷。
 
 ## 六、主要页面
@@ -86,10 +90,11 @@ sologsb-1116/
 | 路由 | 功能 |
 | --- | --- |
 | `/atlas` | 图谱总览：网格卡片展示菌盖形态要点、孢子印色块与鉴定状态，按印色/着生方式筛选并新建条目 |
-| `/atlas/:id` | 条目详情：形态描述分区折叠、孢子印观察登记、采集点编辑（含坐标校验）、鉴定留痕 |
+| `/atlas/:id` | 条目详情：形态描述分区折叠、孢子印观察登记、菌种保藏（当前管数与最高代次）、采集点编辑（含坐标校验）、鉴定留痕 |
 | `/points` | 采集点管理：经纬度格式校验、条目数与主要基物统计、删除前校验下级条目 |
 | `/identify` | 鉴定工作页：左侧勾选形态特征与印色，右侧实时给出候选名录排序，确认后落鉴定结论 |
 | `/compare` | 条目对比：并排最多 3 条，逐项对照菌盖/菌褶菌管/孢子印差异并高亮 |
+| `/strains` | 菌种保藏：按在存/污染/废弃分栏查看，建立起始管、转接加代、状态标记，原始来源与历代关系可回溯 |
 
 ## 七、候选排序规则
 

@@ -1,22 +1,23 @@
 import { onUnmounted, reactive } from 'vue'
 import type { StoreApi } from 'zustand/vanilla'
 import Dexie, { type Table } from 'dexie'
-import type { CollectPoint, FungusRecord, IdentifyLog, SporePrint } from '@/types'
+import type { CollectPoint, CultureTube, FungusRecord, IdentifyLog, SporePrint } from '@/types'
 
 /** IndexedDB 数据结构版本号 */
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
 
 export interface MetaRow {
   key: string
   value: number
 }
 
-/** Dexie 封装：条目 / 孢子印 / 采集点 / 鉴定结论 四张表 + 元数据表 */
+/** Dexie 封装：条目 / 孢子印 / 采集点 / 鉴定结论 / 菌种管 五张表 + 元数据表 */
 class FungiGuideDb extends Dexie {
   records!: Table<FungusRecord, string>
   spores!: Table<SporePrint, string>
   points!: Table<CollectPoint, string>
   identifies!: Table<IdentifyLog, string>
+  strains!: Table<CultureTube, string>
   meta!: Table<MetaRow, string>
 
   constructor() {
@@ -29,7 +30,7 @@ class FungiGuideDb extends Dexie {
       meta: 'key'
     })
     // v2：新增「菌肉变色反应」字段，迁移时为历史条目补齐默认值（不变色）
-    this.version(SCHEMA_VERSION)
+    this.version(2)
       .stores({
         records: 'id, code, pointId, attachment, capShape',
         spores: 'id, recordId, color, observeDate',
@@ -47,6 +48,10 @@ class FungiGuideDb extends Dexie {
             }
           })
       })
+    // v3：新增「菌种保藏」表，登记起始管与历代转接管（未变化的表沿用 v2 结构）
+    this.version(SCHEMA_VERSION).stores({
+      strains: 'id, recordId, tubeNo, status, isolateDate'
+    })
   }
 }
 
@@ -245,6 +250,42 @@ export async function seedDemoData(): Promise<void> {
       needReview: false,
       reviewer: '祁野',
       date: today
+    }
+  ])
+
+  await db.strains.bulkPut([
+    {
+      id: 'str_001',
+      recordId: 'rec_001',
+      tubeNo: 'BHS-2026-001-G1',
+      medium: 'PDA',
+      isolateDate: today,
+      generation: 1,
+      parentId: null,
+      status: '在存',
+      note: '孢子印悬液划线分离，菌丝纯白'
+    },
+    {
+      id: 'str_002',
+      recordId: 'rec_001',
+      tubeNo: 'BHS-2026-001-G2',
+      medium: 'PDA',
+      isolateDate: today,
+      generation: 2,
+      parentId: 'str_001',
+      status: '在存',
+      note: '生长旺盛，边缘整齐'
+    },
+    {
+      id: 'str_003',
+      recordId: 'rec_002',
+      tubeNo: 'BHS-2026-002-G1',
+      medium: 'MEA',
+      isolateDate: today,
+      generation: 1,
+      parentId: null,
+      status: '污染',
+      note: '第 5 天出现绿色霉斑，停止转接'
     }
   ])
 }

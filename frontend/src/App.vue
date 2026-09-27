@@ -6,18 +6,21 @@ import { recordStore } from '@/stores/recordStore'
 import { sporeStore } from '@/stores/sporeStore'
 import { pointStore } from '@/stores/pointStore'
 import { identifyStore } from '@/stores/identifyStore'
+import { strainStore } from '@/stores/strainStore'
 
 const route = useRoute()
 const recordState = useStore(recordStore)
 const sporeState = useStore(sporeStore)
 const pointState = useStore(pointStore)
 const identifyState = useStore(identifyStore)
+const strainState = useStore(strainStore)
 
 const menus = [
   { path: '/atlas', label: '图谱总览', icon: 'Grid' },
   { path: '/points', label: '采集点管理', icon: 'Location' },
   { path: '/identify', label: '鉴定工作页', icon: 'Search' },
-  { path: '/compare', label: '条目对比', icon: 'Files' }
+  { path: '/compare', label: '条目对比', icon: 'Files' },
+  { path: '/strains', label: '菌种保藏', icon: 'Collection' }
 ]
 
 const activeMenu = computed(() => menus.find((item) => route.path.startsWith(item.path))?.path ?? '/atlas')
@@ -26,7 +29,8 @@ const stats = computed(() => [
   { label: '条目', value: recordState.records.length },
   { label: '孢子印', value: sporeState.spores.length },
   { label: '采集点', value: pointState.points.length },
-  { label: '鉴定留痕', value: identifyState.logs.length }
+  { label: '鉴定留痕', value: identifyState.logs.length },
+  { label: '菌种管', value: strainState.tubes.length }
 ])
 
 onMounted(async () => {
@@ -34,6 +38,7 @@ onMounted(async () => {
   await sporeStore.getState().hydrate()
   await pointStore.getState().hydrate()
   await identifyStore.getState().hydrate()
+  await strainStore.getState().hydrate()
 })
 </script>
 
@@ -64,7 +69,7 @@ onMounted(async () => {
     <el-container>
       <el-header class="header">
         <span class="crumb">{{ (route.meta.title as string) ?? '图谱' }}</span>
-        <span class="head-tip">采集点 → 形态描述 → 孢子印 → 鉴定结论，全过程留痕</span>
+        <span class="head-tip">采集点 → 形态描述 → 孢子印 → 鉴定结论 → 菌种保藏，全过程留痕</span>
       </el-header>
       <el-main class="main">
         <p class="warn-strip">

@@ -1,19 +1,25 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import type { CollectPoint, SporeColor, SporePrint } from '@/types'
+import type { CollectPoint, CultureTube, SporeColor, SporePrint } from '@/types'
 import { SPORE_COLORS } from '@/types'
 import GeoPointForm from '@/components/common/GeoPointForm.vue'
 import GillAttachmentTag from '@/components/common/GillAttachmentTag.vue'
 import SporePrintSwatch from '@/components/common/SporePrintSwatch.vue'
 import TraitsSummary from '@/components/common/TraitsSummary.vue'
+import InitialTubeDialog from '@/components/strain/InitialTubeDialog.vue'
+import TransferDialog from '@/components/strain/TransferDialog.vue'
+import LineageDialog from '@/components/strain/LineageDialog.vue'
 import { useStore } from '@/hooks/usePersistentStore'
+import { useTubeActions } from '@/hooks/useTubeActions'
 import { recordStore } from '@/stores/recordStore'
 import { sporeStore } from '@/stores/sporeStore'
 import { pointStore } from '@/stores/pointStore'
 import { identifyStore } from '@/stores/identifyStore'
+import { strainStore } from '@/stores/strainStore'
 import { sporeColorHex } from '@/utils/spore'
+import { strainStats, tubeStatusType } from '@/utils/strain'
 import { uid } from '@/utils/id'
 
 const route = useRoute()
@@ -22,10 +28,25 @@ const recordState = useStore(recordStore)
 const sporeState = useStore(sporeStore)
 const pointState = useStore(pointStore)
 const identifyState = useStore(identifyStore)
+const strainState = useStore(strainStore)
 
 const record = computed(() => recordState.records.find((item) => item.id === route.params.id) ?? null)
 const spore = computed(() => sporeState.spores.find((item) => item.recordId === record.value?.id) ?? null)
 const logs = computed(() => identifyState.logs.filter((item) => item.recordId === record.value?.id))
+/** 当前条目名下全部菌管与保藏统计（当前管数 / 在存数 / 最高代次） */
+const recordTubes = computed(() => strainState.tubes.filter((item) => item.recordId === record.value?.id))
+const tubeStats = computed(() =>
+  record.value ? strainStats(strainState.tubes, record.value.id) : { total: 0, active: 0, maxGeneration: 0 }
+)
+
+const initialVisible = ref(false)
+const { transferVisible, transferParent, lineageVisible, lineageTube, openTransfer, openLineage, markStatus } =
+  useTubeActions()
+
+function parentNo(parentId: string | null): string {
+  if (!parentId) return '—'
+  return strainState.tubes.find((item) => item.id === parentId)?.tubeNo ?? '（母管已删）'
+}
 /** 当前条目所属采集点名称（在脚本内取，避免模板内箭头函数丢失空值收窄） */
 const recordPointName = computed(() => {
   const current = record.value
@@ -184,6 +205,58 @@ async function removeSpore(): Promise<void> {
       </el-card>
 
       <el-card shadow="never" class="block">
+        <template #header>
+          <div class="block-head">
+            <span>菌种保藏</span>
+            <div class="strain-head">
+              <el-tag effect="plain">当前管数 {{ tubeStats.total }}（在存 {{ tubeStats.active }}）</el-tag>
+              <el-tag type="warning" effect="plain">
+                最高代次 {{ tubeStats.maxGeneration > 0 ? `G${tubeStats.maxGeneration}` : '—' }}
+              </el-tag>
+              <el-button size="small" type="primary" @click="initialVisible = true">建立起始管</el-button>
+            </div>
+          </div>
+        </template>
+        <el-table v-if="recordTubes.length > 0" :data="recordTubes" border stripe>
+          <el-table-column label="管号" min-width="170">
+            <template #default="{ row }: { row: CultureTube }">
+              <span class="mono tube-no">{{ row.tubeNo }}</span>
+              <el-tag v-if="row.parentId === null" size="small" effect="plain">起始管</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="代次" width="70" align="center">
+            <template #default="{ row }: { row: CultureTube }">G{{ row.generation }}</template>
+          </el-table-column>
+          <el-table-column prop="medium" label="培养基" width="100" />
+          <el-table-column prop="isolateDate" label="分离/转接日期" width="120" />
+          <el-table-column label="母管" min-width="140">
+            <template #default="{ row }: { row: CultureTube }">
+              <span class="mono">{{ parentNo(row.parentId) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="状态" width="80" align="center">
+            <template #default="{ row }: { row: CultureTube }">
+              <el-tag :type="tubeStatusType(row.status)" size="small" effect="dark">{{ row.status }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="270">
+            <template #default="{ row }: { row: CultureTube }">
+              <el-button v-if="row.status === '在存'" size="small" type="primary" plain @click="openTransfer(row)">
+                转接
+              </el-button>
+              <el-button size="small" @click="openLineage(row)">历代</el-button>
+              <template v-if="row.status === '在存'">
+                <el-button size="small" type="warning" plain @click="markStatus(row, '污染')">标污染</el-button>
+                <el-button size="small" type="danger" plain @click="markStatus(row, '废弃')">标废弃</el-button>
+              </template>
+              <el-button v-else size="small" type="success" plain @click="markStatus(row, '在存')">恢复在存</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+        <el-empty v-else description="尚未保藏菌种：孢子印或组织分离后，点击「建立起始管」登记 G1" />
+      </el-card>
+
+      <el-card shadow="never" class="block">
         <template #header>采集点信息（含经纬度校验）</template>
         <GeoPointForm v-model="pointDraft" with-meta />
         <div class="form-actions">
@@ -213,6 +286,10 @@ async function removeSpore(): Promise<void> {
         <el-empty v-if="logs.length === 0" description="尚无鉴定结论，去「鉴定工作页」生成" />
       </el-card>
     </template>
+
+    <InitialTubeDialog v-model="initialVisible" :record-id="record?.id" />
+    <TransferDialog v-model="transferVisible" :parent="transferParent" />
+    <LineageDialog v-model="lineageVisible" :tube="lineageTube" />
   </div>
 </template>
 
@@ -230,6 +307,15 @@ async function removeSpore(): Promise<void> {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+}
+.strain-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tube-no {
+  font-weight: 600;
+  margin-right: 6px;
 }
 .note {
   margin: 10px 0 0;

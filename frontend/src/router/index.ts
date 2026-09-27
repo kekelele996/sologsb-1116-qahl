@@ -32,6 +32,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/pages/ComparePage.vue'),
     meta: { title: '条目对比' }
   },
+  {
+    path: '/strains',
+    name: 'strains',
+    component: () => import('@/pages/StrainsPage.vue'),
+    meta: { title: '菌种保藏' }
+  },
   { path: '/:pathMatch(.*)*', redirect: '/atlas' }
 ]
 
